@@ -1,4 +1,8 @@
+import re
+
 from crownpacific.util import strings_to_numbers
+
+dollar_re = re.compile(r"\$(\d+\.\d+)")
 
 
 class Product(object):
@@ -27,9 +31,9 @@ class Product(object):
             self.pack_size = str()
             self._description = str()
             self.min_qty = int()
-            self.srp = float()
-            self.case_cost = float()
-            self.each_cost = float()
+            self._srp = float()
+            self._case_cost = float()
+            self._each_cost = float()
             self._attributes = []
 
     @property
@@ -49,7 +53,7 @@ class Product(object):
         if isinstance(value, str):
             self._upc = strings_to_numbers(value[:-1].replace("-", ""))
         else:
-            self._upc = value
+            self._upc = int(value)
 
     @property
     def attributes(self):
@@ -87,9 +91,42 @@ class Product(object):
             "attributes": self.attributes
         }
 
+    @property
+    def srp(self):
+        return self._srp
+
+    @srp.setter
+    def srp(self, value):
+        if isinstance(value, (bytes, str)):
+            self._srp = float(value.replace("$", "").strip())
+        else:
+            self._srp = float(value)
+            
+            
+    @property
+    def case_cost(self):
+        return self._case_cost
+
+    @case_cost.setter
+    def case_cost(self, value):
+        if isinstance(value, (bytes, str)):
+            self._case_cost = float(value.replace("$", "").strip())
+        else:
+            self._case_cost = float(value)
+            
+    @property
+    def each_cost(self):
+        return self._each_cost
+
+    @each_cost.setter
+    def each_cost(self, value):
+        if isinstance(value, (bytes, str)):
+            self._each_cost = float(value.replace("$", "").strip())
+        else:
+            self._each_cost = float(value)
+
     def __str__(self):
-        return f"Brand: {self.brand} Description: {self.description} " \
-            f"UPC: {self.upc} Cost: {self.each_cost} SRP: {self.srp}"
+        return str(self.values)
 
     def __repr__(self):
         return f"crownpacific.product.Product {self.brand} {self.description} {self.upc}"
@@ -154,3 +191,6 @@ class Products(object):
 
     def __str__(self):
         return str(self.products)
+
+    def __getitem__(self, idx):
+        return self.products[idx]
