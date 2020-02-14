@@ -22,6 +22,7 @@ class CrownPacificApi(object):
         self.products = {}
         if username and password:
             self.login(username, password)
+        self.verbose = False
 
     def login(self, username, password):
         self.username = username
@@ -53,9 +54,12 @@ class CrownPacificApi(object):
         res = self.session.post(login_url, data=payload, headers=headers)
         login_soup = BeautifulSoup(res.content, features="lxml")
         if not login_soup.find("a", {"class": "login custom"}):
-            print("Login Failed, Pricing Wont Be Shown")
+            if self.verbose:
+                print("Login failed, costs wont be shown and purchase oders unavailable")
         else:
             self.logged_in = True
+            if self.verbose:
+                print("Successfully logged in.")
         pass
 
     def search(self, query):
@@ -83,7 +87,8 @@ class CrownPacificApi(object):
             while True:
                 entry = q.get()
                 r = self.session.get(entry)
-                print(entry)
+                if self.verbose:
+                    print(entry)
                 items.append([entry, r.content])
                 q.task_done()
 
