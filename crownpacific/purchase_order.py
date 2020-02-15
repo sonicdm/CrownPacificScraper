@@ -5,6 +5,9 @@ class PurchaseOrder(Products):
     def __init__(self, line_items_dict=None):
         super().__init__()
         self._line_items = {}
+        self.date = None
+        self.status = None
+        self.total_cost = 0
         if line_items_dict:
             self.add_line_items_from_dict(line_items_dict)
         pass
@@ -20,16 +23,12 @@ class PurchaseOrder(Products):
             self.add_new_line_item(line_item_dict['id'], from_dict=line_item_dict)
         )
 
-        line_item.qty += line_item_dict['qty']
+        line_item.qty = line_item_dict['qty']
         self._line_items[line_item.id] = line_item
 
     def add_new_line_item(self, product_num=None, qty=0, cost=0, url=None, product=None, from_dict=None):
 
-        line_item = self._line_items.get(product_num)
-        if line_item:
-            line_item.qty += qty
-        else:
-            line_item = LineItem(product_num, qty, cost, url, product, from_dict)
+        line_item = LineItem(product_num, qty, cost, url, product, from_dict)
 
         self._line_items[product_num] = line_item
         self.add_product(line_item.product)
@@ -58,10 +57,26 @@ class PurchaseOrder(Products):
 
     @property
     def line_items(self):
-        return list(self._line_items.values())
+        """
+        :return items
+        :rtype list of LineItem
+        """
+        items = list(self._line_items.values())
+        return items
+
+    @property
+    def total_cases(self):
+        total = 0
+        for item in self.line_items:
+            total += item.qty
+
+        return total
 
     def __len__(self):
         return len(self._line_items)
+
+    def __iter__(self):
+        return iter(self.line_items)
 
 
 class LineItem:
@@ -93,3 +108,5 @@ class LineItem:
     @property
     def values(self):
         return [self.id, self.qty, self.cost, self.url, self.product]
+
+
