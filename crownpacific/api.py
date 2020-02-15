@@ -4,6 +4,7 @@ from threading import Thread
 import feedparser
 import requests
 from bs4 import BeautifulSoup
+from dateutil import parser as date_parser
 
 from crownpacific.product import Product, Products
 from crownpacific.purchase_order import PurchaseOrder
@@ -15,6 +16,7 @@ login_url = r"https://www.cpff.net/my-account/"
 class CrownPacificApi(object):
 
     def __init__(self, username=None, password=None):
+        self.verbose = False
         self.username = username
         self.password = password
         self.logged_in = False
@@ -22,7 +24,6 @@ class CrownPacificApi(object):
         self.products = {}
         if username and password:
             self.login(username, password)
-        self.verbose = False
 
     def login(self, username, password):
         self.username = username
@@ -67,7 +68,7 @@ class CrownPacificApi(object):
         search_url = r"https://www.cpff.net/?s={query}"
         res = self.rss_search(query)
         for page in res:
-            items.append(self.item_page_to_fields(page[1]))
+            items.append(self.item_page_to_fields(page))
         search_result = SearchResult(query)
         search_result.add_products_by_fields(items)
         return search_result
@@ -107,10 +108,12 @@ class CrownPacificApi(object):
         return items
 
     def item_page_to_fields(self, page):
-        if not isinstance(page, (bytes, str)):
-            raise TypeError(f"page must be type bytes or str not {type(page)}")
+        url = page[0]
+        contents = page[1]
+        if not isinstance(contents, (bytes, str)):
+            raise TypeError(f"page must be type bytes or str not {type(contents)}")
 
-        item_soup = BeautifulSoup(page)
+        item_soup = BeautifulSoup(contents, features="lxml")
         if item_soup:
             product_soup = item_soup.find("div", {"class": "row prod-detail"})
             if product_soup:
@@ -124,7 +127,8 @@ class CrownPacificApi(object):
                 for dd in list(detail_soup.dl.find_all("dd")):
                     dds.append(dd.text.title())
 
-                fields = {}
+                fields = {"url": url}
+
                 for idx, field in enumerate(dts):
                     fields[field] = dds[idx]
 
@@ -156,20 +160,37 @@ class CrownPacificApi(object):
                 row.pop(-1)
                 row.append(tr.a['href'])
                 orders.append(row)
+                row[0] = int(row[0].replace("#", ""))
+                row[1] = date_parser.parse(row[1]).date()
         return orders
 
     def get_purchase_order(self, order_number):
-
-        line_items = self.get_purchase_order_line_items(order_number)
-
-        return PurchaseOrder(line_items)
-
-    def get_purchase_order_line_items(self, order_number):
         if not self.logged_in:
             raise Exception("Must be logged in to complete this action")
+
+        order_soup = self.retrieve_purchase_order_soup(order_number)
+        order_date = order_soup.find("mark", {"class": "order-date"}).text
+        order_date = date_parser.parse(order_date).date()
+        order_status = order_soup.find("mark", {"class": "order-status"}).text
+        total_cost = order_soup.find("span", {"class": "woocommerce-Price-amount amount"}).text
+        total_cost = float(total_cost.replace("$", ""))
+        total_items = None
+        line_items = self.get_purchase_order_line_items(order_number)
+        po = PurchaseOrder(line_items)
+        po.status = order_status
+        po.date = order_date
+        po.total_cost = total_cost
+        return po
+
+    def retrieve_purchase_order_soup(self, order_number):
         order_url = "https://www.cpff.net/my-account/view-order/{order}/".format(order=order_number)
         res = self.session.get(order_url)
         order_soup = BeautifulSoup(res.content, features="lxml")
+        return order_soup
+
+    def get_purchase_order_line_items(self, order_number, order_soup=None):
+        if not order_soup:
+            order_soup = self.retrieve_purchase_order_soup(order_number)
         order_date = order_soup.find("mark", {"class": "order-date"}).text
         order_status = order_soup.find("mark", {"class": "order-status"}).text
         products_table_class = "woocommerce-table woocommerce-table--order-details shop_table order_details"
@@ -191,12 +212,12 @@ class CrownPacificApi(object):
             line_item["id"] = product_num
             line_item["cost"] = cost
             cur_qty = line_item.setdefault("qty", 0)
-            line_item["qty"] += product_qty
+            line_item["qty"] = product_qty
 
         product_pages = self.batch_fetch_pages(urls)
         products = Products()
-        for url, page_content in product_pages:
-            fields = self.item_page_to_fields(page_content)
+        for page in product_pages:
+            fields = self.item_page_to_fields(page)
             product = Product(fields)
             item = line_items.get(product.item)
             if item:

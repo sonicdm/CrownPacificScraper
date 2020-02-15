@@ -18,20 +18,24 @@ class Product(object):
         "Each Cost": "each_cost",
         "Attributes": "attributes",
         "Brand": "brand",
+        "url": "url"
     }
 
     def __init__(self, fields=None):
         self.min_qty = 0
+        self.url = None
         if fields:
             self.fields_to_product(fields)
         else:
             self.brand = str()
             self._upc = int()
             self.item = int()
-            self.pack_size = str()
+            self._pack_size = str()
             self._description = str()
             self.min_qty = int()
             self._srp = float()
+            self.case_size = int()
+            self.unit_size = None
             self._case_cost = float()
             self._each_cost = float()
             self._attributes = []
@@ -83,12 +87,14 @@ class Product(object):
             "brand": self.brand,
             "description": self.description,
             "upc": self.upc,
-            "pack_size": self.pack_size,
+            "case_size": self.case_size,
+            "unit_size": self.unit_size,
             "each_cost": self.each_cost,
             "case_cost": self.case_cost,
             "min_qty": self.min_qty,
             "srp": self.srp,
-            "attributes": self.attributes
+            "attributes": self.attributes,
+            "url": self.url
         }
 
     @property
@@ -98,11 +104,11 @@ class Product(object):
     @srp.setter
     def srp(self, value):
         if isinstance(value, (bytes, str)):
-            self._srp = float(value.replace("$", "").strip())
+            value = value.replace("$", "").strip()
+            self._srp = float(value) if value else None
         else:
             self._srp = float(value)
-            
-            
+
     @property
     def case_cost(self):
         return self._case_cost
@@ -110,10 +116,11 @@ class Product(object):
     @case_cost.setter
     def case_cost(self, value):
         if isinstance(value, (bytes, str)):
-            self._case_cost = float(value.replace("$", "").strip())
+            value = value.replace("$", "").strip()
+            self._case_cost = float(value) if value else None
         else:
             self._case_cost = float(value)
-            
+
     @property
     def each_cost(self):
         return self._each_cost
@@ -121,9 +128,28 @@ class Product(object):
     @each_cost.setter
     def each_cost(self, value):
         if isinstance(value, (bytes, str)):
-            self._each_cost = float(value.replace("$", "").strip())
+            value = value.replace("$", "").strip()
+            self._each_cost = float(value) if value else None
         else:
             self._each_cost = float(value)
+
+    @property
+    def pack_size(self):
+        return self._pack_size
+
+    @pack_size.setter
+    def pack_size(self, value):
+
+        self._pack_size = value
+        sections = [x.strip() for x in value.split("/")]
+
+        if sections[0] == '1':
+            self.case_size = int(sections[1])
+            self.unit_size = " ".join(sections[-2:]).upper().replace("*", "").strip()
+        else:
+            self.case_size = int(sections[0])
+            self.unit_size = sections[1] + "/" + " ".join(sections[-2:]).upper().replace("*", "").strip()
+        pass
 
     def __str__(self):
         return str(self.values)
